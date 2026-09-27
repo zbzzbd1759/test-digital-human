@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build output
+backend-java/target/
+
+# Runtime generated
+backend-java/generated-scripts/
+backend-java/reports/
+generated-scripts/
+reports/
+/engine/
+
+# Compiled classes
+*.class
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+
+# Qoder internal
+.qoder/
