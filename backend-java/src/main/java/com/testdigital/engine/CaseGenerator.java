@@ -103,6 +103,7 @@ public class CaseGenerator {
                 "所有关键UI元素可见且样式正确", "ui"
         ));
 
+        cases.forEach(tc -> tc.setSource("local"));
         return cases;
     }
 

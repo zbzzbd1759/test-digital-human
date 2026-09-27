@@ -30,6 +30,8 @@ public class TestCase {
      * {@code stress}、{@code performance}、{@code ui}
      */
     private String type;
+    /** 用例来源：{@code local} 表示本地模板生成，{@code llm} 表示 AI 模型生成 */
+    private String source;
 
     /** 默认无参构造，供 JSON 反序列化或手动构建使用 */
     public TestCase() {}
@@ -74,4 +76,6 @@ public class TestCase {
     public void setExpected(String expected) { this.expected = expected; }
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+    public String getSource() { return source; }
+    public void setSource(String source) { this.source = source; }
 }

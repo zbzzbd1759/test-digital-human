@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>请求日志 - 测试数字人</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f0f1a; color: #e0e0e0; min-height: 100vh; }
+
+    .app { display: flex; flex-direction: column; min-height: 100vh; }
+
+    .topbar { background: linear-gradient(135deg, #1a1a2e, #16213e); padding: 16px 32px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid rgba(255,255,255,0.06); }
+    .topbar .logo { width: 40px; height: 40px; background: linear-gradient(135deg, #667eea, #764ba2); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 20px; }
+    .topbar h1 { font-size: 20px; font-weight: 600; }
+    .topbar .subtitle { font-size: 13px; color: #888; }
+    .topbar .nav { margin-left: auto; display: flex; gap: 12px; }
+    .topbar .nav a { color: #888; text-decoration: none; font-size: 14px; padding: 6px 12px; border-radius: 6px; transition: all 0.2s; }
+    .topbar .nav a:hover, .topbar .nav a.active { color: #e0e0e0; background: rgba(102,126,234,0.1); }
+
+    .main { flex: 1; padding: 32px; overflow-y: auto; }
+
+    .toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
+    .toolbar h2 { font-size: 18px; font-weight: 600; }
+    .toolbar .count { font-size: 13px; color: #888; }
+    .toolbar .spacer { flex: 1; }
+
+    .btn { padding: 8px 16px; border: none; border-radius: 6px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+    .btn-primary { background: linear-gradient(135deg, #667eea, #764ba2); color: white; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-danger { background: rgba(239,68,68,0.15); color: #f87171; }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+    .btn-secondary { background: #2a2a3e; color: #ccc; }
+    .btn-secondary:hover { background: #3a3a4e; }
+
+    .log-table { width: 100%; border-collapse: collapse; }
+    .log-table th, .log-table td { padding: 12px 16px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.06); font-size: 13px; }
+    .log-table th { background: rgba(102,126,234,0.08); color: #aaa; font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    .log-table tr { cursor: pointer; transition: background 0.2s; }
+    .log-table tbody tr:hover { background: rgba(102,126,234,0.05); }
+
+    .method-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: monospace; }
+    .method-get { background: rgba(16,185,129,0.15); color: #34d399; }
+    .method-post { background: rgba(102,126,234,0.15); color: #818cf8; }
+    .method-put { background: rgba(245,158,11,0.15); color: #fbbf24; }
+    .method-delete { background: rgba(239,68,68,0.15); color: #f87171; }
+
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; }
+    .status-success { background: rgba(16,185,129,0.15); color: #34d399; }
+    .status-error { background: rgba(239,68,68,0.15); color: #f87171; }
+    .status-processing { background: rgba(245,158,11,0.15); color: #fbbf24; }
+
+    .model-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; background: rgba(139,92,246,0.15); color: #a78bfa; font-family: monospace; }
+
+    .duration { font-family: monospace; font-size: 12px; color: #888; }
+
+    .empty-state { text-align: center; padding: 60px 20px; color: #555; }
+    .empty-state .icon { font-size: 48px; margin-bottom: 16px; }
+    .empty-state p { font-size: 14px; }
+
+    .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: center; justify-content: center; }
+    .modal-overlay.active { display: flex; }
+    .modal { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 12px; width: 90%; max-width: 700px; max-height: 80vh; overflow-y: auto; }
+    .modal-header { padding: 20px 24px; border-bottom: 1px solid rgba(255,255,255,0.06); display: flex; align-items: center; }
+    .modal-header h3 { font-size: 16px; font-weight: 600; }
+    .modal-header .close { margin-left: auto; background: none; border: none; color: #888; font-size: 20px; cursor: pointer; }
+    .modal-body { padding: 24px; }
+
+    .detail-row { margin-bottom: 16px; }
+    .detail-label { font-size: 12px; color: #888; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .detail-value { font-size: 14px; color: #e0e0e0; }
+    .detail-value pre { background: #12121f; border: 1px solid #2a2a3e; border-radius: 6px; padding: 12px; font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.5; white-space: pre-wrap; word-break: break-all; color: #a5b4fc; max-height: 200px; overflow-y: auto; }
+
+    .auto-refresh { display: flex; align-items: center; gap: 8px; font-size: 13px; color: #888; }
+    .auto-refresh input { accent-color: #667eea; }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="logo">T</div>
+      <div>
+        <h1>测试数字人</h1>
+        <div class="subtitle">请求日志监控</div>
+      </div>
+      <div class="nav">
+        <a href="/">测试流程</a>
+        <a href="/logs.html" class="active">请求日志</a>
+      </div>
+    </div>
+
+    <div class="main">
+      <div class="toolbar">
+        <h2>API 请求日志</h2>
+        <span class="count" id="logCount">共 0 条记录</span>
+        <div class="spacer"></div>
+        <label class="auto-refresh">
+          <input type="checkbox" id="autoRefresh" checked> 自动刷新 (3s)
+        </label>
+        <button class="btn btn-secondary" onclick="loadLogs()">刷新</button>
+        <button class="btn btn-danger" onclick="clearLogs()">清空</button>
+      </div>
+
+      <div id="logList">
+        <div class="empty-state">
+          <div class="icon">📋</div>
+          <p>暂无请求日志</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3>请求详情</h3>
+        <button class="close" onclick="closeModal()">&times;</button>
+      </div>
+      <div class="modal-body" id="modalBody"></div>
+    </div>
+  </div>
+
+  <script>
+    let refreshTimer = null;
+
+    async function loadLogs() {
+      try {
+        const res = await fetch('/api/logs');
+        const data = await res.json();
+        renderLogs(data.logs || []);
+      } catch (e) {
+        console.error('加载日志失败:', e);
+      }
+    }
+
+    function renderLogs(logs) {
+      document.getElementById('logCount').textContent = `共 ${logs.length} 条记录`;
+
+      if (logs.length === 0) {
+        document.getElementById('logList').innerHTML = `
+          <div class="empty-state">
+            <div class="icon">📋</div>
+            <p>暂无请求日志</p>
+          </div>`;
+        return;
+      }
+
+      let html = `<table class="log-table"><thead><tr>
+        <th>ID</th><th>方法</th><th>路径</th><th>模型</th><th>状态</th><th>状态码</th><th>耗时</th><th>时间</th>
+      </tr></thead><tbody>`;
+
+      for (const log of logs) {
+        const methodClass = `method-${log.method.toLowerCase()}`;
+        const statusClass = `status-${log.status}`;
+        const time = new Date(log.startTime).toLocaleString('zh-CN');
+        const modelName = (log.details && log.details.llm) ? log.details.llm.model : '';
+
+        html += `<tr onclick="showDetail('${log.id}')">
+          <td style="font-family:monospace;color:#888">${log.id}</td>
+          <td><span class="method-badge ${methodClass}">${log.method}</span></td>
+          <td style="font-family:monospace">${log.path}</td>
+          <td>${modelName ? `<span class="model-badge">${modelName}</span>` : '<span style="color:#555">-</span>'}</td>
+          <td><span class="status-badge ${statusClass}">${statusText(log.status)}</span></td>
+          <td>${log.statusCode || '-'}</td>
+          <td><span class="duration">${log.duration ? log.duration + 'ms' : '-'}</span></td>
+          <td style="color:#888;font-size:12px">${time}</td>
+        </tr>`;
+      }
+
+      html += '</tbody></table>';
+      document.getElementById('logList').innerHTML = html;
+    }
+
+    function statusText(status) {
+      const map = { success: '成功', error: '错误', processing: '处理中' };
+      return map[status] || status;
+    }
+
+    async function showDetail(id) {
+      try {
+        const res = await fetch(`/api/logs/${id}`);
+        const log = await res.json();
+        renderDetail(log);
+      } catch (e) {
+        console.error('加载详情失败:', e);
+      }
+    }
+
+    function renderDetail(log) {
+      const time = new Date(log.startTime).toLocaleString('zh-CN');
+      const methodClass = `method-${log.method.toLowerCase()}`;
+      const statusClass = `status-${log.status}`;
+
+      let html = `
+        <div class="detail-row">
+          <div class="detail-label">请求 ID</div>
+          <div class="detail-value" style="font-family:monospace">${log.id}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="detail-row">
+            <div class="detail-label">请求方法</div>
+            <div class="detail-value"><span class="method-badge ${methodClass}">${log.method}</span></div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">状态</div>
+            <div class="detail-value"><span class="status-badge ${statusClass}">${statusText(log.status)} (${log.statusCode || '-'})</span></div>
+          </div>
+        </div>
+        <div class="detail-row">
+          <div class="detail-label">请求路径</div>
+          <div class="detail-value" style="font-family:monospace">${log.path}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+          <div class="detail-row">
+            <div class="detail-label">开始时间</div>
+            <div class="detail-value">${time}</div>
+          </div>
+          <div class="detail-row">
+            <div class="detail-label">耗时</div>
+            <div class="detail-value duration">${log.duration ? log.duration + 'ms' : '-'}</div>
+          </div>
+        </div>`;
+
+      if (log.details && log.details.llm) {
+        const llm = log.details.llm;
+        html += `
+        <div class="detail-row" style="margin-top:20px;padding:16px;background:rgba(102,126,234,0.08);border-radius:8px;border:1px solid rgba(102,126,234,0.2)">
+          <div class="detail-label" style="color:#818cf8;margin-bottom:12px">AI 模型调用详情</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div>
+              <div style="font-size:12px;color:#888">模型名称</div>
+              <div style="font-size:14px;color:#e0e0e0;font-weight:600">${llm.model || '-'}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:#888">调用耗时</div>
+              <div style="font-size:14px;color:#e0e0e0;font-family:monospace">${llm.duration ? llm.duration + 'ms' : '-'}</div>
+            </div>
+          </div>
+          ${llm.tokens ? `
+          <div style="margin-top:12px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+            <div>
+              <div style="font-size:12px;color:#888">输入 Tokens</div>
+              <div style="font-size:14px;color:#e0e0e0;font-family:monospace">${llm.tokens.input || 0}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:#888">输出 Tokens</div>
+              <div style="font-size:14px;color:#e0e0e0;font-family:monospace">${llm.tokens.output || 0}</div>
+            </div>
+            <div>
+              <div style="font-size:12px;color:#888">总 Tokens</div>
+              <div style="font-size:14px;color:#e0e0e0;font-family:monospace">${llm.tokens.total || 0}</div>
+            </div>
+          </div>` : ''}
+        </div>`;
+      }
+
+      if (log.requestBody) {
+        html += `
+        <div class="detail-row">
+          <div class="detail-label">请求体</div>
+          <div class="detail-value"><pre>${escapeHtml(formatJson(log.requestBody))}</pre></div>
+        </div>`;
+      }
+
+      if (log.responseBody) {
+        html += `
+        <div class="detail-row">
+          <div class="detail-label">响应体</div>
+          <div class="detail-value"><pre>${escapeHtml(formatJson(log.responseBody))}</pre></div>
+        </div>`;
+      }
+
+      document.getElementById('modalBody').innerHTML = html;
+      document.getElementById('detailModal').classList.add('active');
+    }
+
+    function closeModal() {
+      document.getElementById('detailModal').classList.remove('active');
+    }
+
+    async function clearLogs() {
+      if (!confirm('确定要清空所有日志吗？')) return;
+      try {
+        await fetch('/api/logs', { method: 'DELETE' });
+        loadLogs();
+      } catch (e) {
+        console.error('清空日志失败:', e);
+      }
+    }
+
+    function formatJson(str) {
+      if (!str) return '';
+      try {
+        return JSON.stringify(JSON.parse(str), null, 2);
+      } catch {
+        return str;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+
+    function setupAutoRefresh() {
+      const checkbox = document.getElementById('autoRefresh');
+      checkbox.addEventListener('change', () => {
+        if (checkbox.checked) {
+          refreshTimer = setInterval(loadLogs, 3000);
+        } else {
+          clearInterval(refreshTimer);
+        }
+      });
+      refreshTimer = setInterval(loadLogs, 3000);
+    }
+
+    document.getElementById('detailModal').addEventListener('click', (e) => {
+      if (e.target.id === 'detailModal') closeModal();
+    });
+
+    loadLogs();
+    setupAutoRefresh();
+  </script>
+</body>
+</html>

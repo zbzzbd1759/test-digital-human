@@ -4,6 +4,7 @@ import com.testdigital.engine.CaseGenerator;
 import com.testdigital.engine.Executor;
 import com.testdigital.engine.LLMService;
 import com.testdigital.engine.Reporter;
+import com.testdigital.engine.RequestLogService;
 import com.testdigital.engine.ScriptGenerator;
 import com.testdigital.model.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -47,6 +48,9 @@ public class TestController {
 
     @Autowired
     private LLMService llmService;
+
+    @Autowired
+    private RequestLogService requestLogService;
 
     /** 查询服务状态，返回 LLM 启用情况 */
     @GetMapping("/api/status")
@@ -140,6 +144,29 @@ public class TestController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
         }
+    }
+
+    /** 查询请求日志列表 */
+    @GetMapping("/api/logs")
+    public ResponseEntity<?> getLogs() {
+        return ResponseEntity.ok(Map.of("logs", requestLogService.getLogs()));
+    }
+
+    /** 查询单条请求日志详情 */
+    @GetMapping("/api/logs/{id}")
+    public ResponseEntity<?> getLogDetail(@PathVariable String id) {
+        RequestLogService.RequestLog log = requestLogService.getLog(id);
+        if (log == null) {
+            return ResponseEntity.status(404).body(Map.of("error", "日志不存在"));
+        }
+        return ResponseEntity.ok(log);
+    }
+
+    /** 清空请求日志 */
+    @DeleteMapping("/api/logs")
+    public ResponseEntity<?> clearLogs() {
+        requestLogService.clearLogs();
+        return ResponseEntity.ok(Map.of("message", "日志已清空"));
     }
 
     /** 将前端传入的原始 Map 结构转换为 TestCase 对象列表 */

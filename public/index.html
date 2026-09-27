@@ -59,6 +59,8 @@
     .badge-p2 { background: rgba(102,126,234,0.15); color: #818cf8; }
     .badge-passed { background: rgba(16,185,129,0.15); color: #34d399; }
     .badge-failed { background: rgba(239,68,68,0.15); color: #f87171; }
+    .badge-ai { background: rgba(139,92,246,0.15); color: #a78bfa; }
+    .badge-local { background: rgba(107,114,128,0.15); color: #9ca3af; }
 
     .script-view { background: #1a1a2e; border: 1px solid #2a2a3e; border-radius: 8px; padding: 16px; margin-top: 16px; max-height: 400px; overflow-y: auto; }
     .script-view pre { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; line-height: 1.6; color: #a5b4fc; white-space: pre-wrap; word-break: break-all; }
@@ -79,6 +81,20 @@
     .spinner { width: 20px; height: 20px; border: 2px solid #2a2a3e; border-top-color: #667eea; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 20px; }
+    .loading-icon { margin-bottom: 24px; }
+    .loading-spinner-large { width: 48px; height: 48px; border: 3px solid #2a2a3e; border-top-color: #667eea; border-radius: 50%; animation: spin 1s linear infinite; }
+    .loading-title { font-size: 18px; font-weight: 600; margin-bottom: 8px; color: #e0e0e0; }
+    .loading-desc { font-size: 14px; color: #888; margin-bottom: 32px; }
+    .loading-steps { display: flex; flex-direction: column; gap: 12px; min-width: 200px; }
+    .loading-step { display: flex; align-items: center; gap: 12px; font-size: 14px; color: #555; padding: 8px 16px; border-radius: 8px; background: #1a1a2e; transition: all 0.3s; }
+    .loading-step::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #2a2a3e; flex-shrink: 0; }
+    .loading-step.active { color: #a5b4fc; background: rgba(102,126,234,0.1); }
+    .loading-step.active::before { background: #667eea; animation: pulse 1.5s ease-in-out infinite; }
+    .loading-step.done { color: #34d399; }
+    .loading-step.done::before { background: #10b981; }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
     .report-link { display: inline-flex; align-items: center; gap: 8px; padding: 12px 20px; background: linear-gradient(135deg, #667eea, #764ba2); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; margin-top: 16px; transition: opacity 0.2s; }
     .report-link:hover { opacity: 0.9; }
 
@@ -95,6 +111,10 @@
       <div>
         <h1>测试数字人</h1>
         <div class="subtitle">输入功能点 → 生成用例 → 执行测试 → 输出报告</div>
+      </div>
+      <div style="margin-left:auto;display:flex;gap:12px">
+        <a href="/" style="color:#e0e0e0;text-decoration:none;font-size:14px;padding:6px 12px;border-radius:6px;background:rgba(102,126,234,0.1)">测试流程</a>
+        <a href="/logs.html" style="color:#888;text-decoration:none;font-size:14px;padding:6px 12px;border-radius:6px;transition:all 0.2s" onmouseover="this.style.color='#e0e0e0';this.style.background='rgba(102,126,234,0.1)'" onmouseout="this.style.color='#888';this.style.background='transparent'">请求日志</a>
       </div>
     </div>
 
@@ -197,23 +217,80 @@
       targetUrl = document.getElementById('targetUrl').value.trim();
       if (!featurePoint) return alert('请输入功能点描述');
 
-      const res = await fetch('/api/generate-cases', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ featurePoint, targetUrl: targetUrl || undefined })
-      });
-      const data = await res.json();
-      testCases = data.cases;
-      renderCases();
-      markDone(1);
       goStep(2);
+      document.getElementById('caseSummary').textContent = '';
+      document.getElementById('caseContent').innerHTML = `
+        <div class="loading-screen">
+          <div class="loading-icon">
+            <div class="loading-spinner-large"></div>
+          </div>
+          <div class="loading-title">AI 正在生成测试用例...</div>
+          <div class="loading-desc">基于功能点「${escapeHtml(featurePoint)}」分析测试场景</div>
+          <div class="loading-steps">
+            <div class="loading-step active">分析功能需求</div>
+            <div class="loading-step">生成测试场景</div>
+            <div class="loading-step">优化用例细节</div>
+          </div>
+        </div>`;
+
+      const startTime = Date.now();
+      const stepsEl = document.querySelectorAll('.loading-step');
+
+      const progressTimer = setInterval(() => {
+        const elapsed = (Date.now() - startTime) / 1000;
+        if (elapsed > 5 && stepsEl[0] && !stepsEl[0].classList.contains('done')) {
+          stepsEl[0].classList.remove('active');
+          stepsEl[0].classList.add('done');
+          stepsEl[1].classList.add('active');
+        }
+        if (elapsed > 15 && stepsEl[1] && !stepsEl[1].classList.contains('done')) {
+          stepsEl[1].classList.remove('active');
+          stepsEl[1].classList.add('done');
+          stepsEl[2].classList.add('active');
+        }
+      }, 1000);
+
+      try {
+        const res = await fetch('/api/generate-cases', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ featurePoint, targetUrl: targetUrl || undefined })
+        });
+        const data = await res.json();
+        testCases = data.cases;
+        clearInterval(progressTimer);
+        renderCases();
+        markDone(1);
+      } catch (e) {
+        clearInterval(progressTimer);
+        document.getElementById('caseContent').innerHTML = `
+          <div style="color:#ef4444;padding:20px;text-align:center">
+            生成失败: ${escapeHtml(e.message)}
+          </div>`;
+      }
     }
 
     function renderCases() {
-      document.getElementById('caseSummary').textContent = `共生成 ${testCases.length} 个测试用例`;
+      const llmCount = testCases.filter(tc => tc.source === 'llm').length;
+      const localCount = testCases.length - llmCount;
+      let summaryText = `共生成 ${testCases.length} 个测试用例`;
+      if (llmCount > 0 && localCount > 0) {
+        summaryText += `（AI 生成 ${llmCount} 个，本地模板 ${localCount} 个）`;
+      } else if (llmCount > 0) {
+        summaryText += `（全部由 AI 生成）`;
+      } else {
+        summaryText += `（全部由本地模板生成）`;
+      }
+      document.getElementById('caseSummary').textContent = summaryText;
+
       const priorityBadge = p => `<span class="badge badge-${p.toLowerCase()}">${p}</span>`;
+      const sourceBadge = s => {
+        if (s === 'llm') return '<span class="badge badge-ai">AI 生成</span>';
+        return '<span class="badge badge-local">本地</span>';
+      };
+
       let html = `<table class="case-table"><thead><tr>
-        <th>编号</th><th>用例名称</th><th>分类</th><th>优先级</th><th>预期结果</th>
+        <th>编号</th><th>用例名称</th><th>分类</th><th>优先级</th><th>来源</th><th>预期结果</th>
       </tr></thead><tbody>`;
       for (const tc of testCases) {
         html += `<tr>
@@ -221,6 +298,7 @@
           <td>${tc.name}</td>
           <td>${tc.category}</td>
           <td>${priorityBadge(tc.priority)}</td>
+          <td>${sourceBadge(tc.source)}</td>
           <td>${tc.expected}</td>
         </tr>`;
       }
